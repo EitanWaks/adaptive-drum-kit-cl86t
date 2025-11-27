@@ -1,0 +1,29 @@
+# PlatformIO
+.pio/
+.vscode/
+*.elf
+*.hex
+*.bin
+
+# Build artifacts
+build/
+dist/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
