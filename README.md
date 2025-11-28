@@ -65,40 +65,48 @@ This is an implementation designed for the hardware stack:
 
 1. Open serial monitor (115200 baud)
 2. Type `?` and press Enter to see status
-3. Type `R` and press Enter to rotate one full revolution
-4. Type `F` to move forward, `B` to move backward
+3. Type `n` to nudge (move 1 step)
+4. Type `m` then enter `90` to map 90 degrees
+5. Type `t` to trigger (rotate and return)
 
 ## 📖 Serial Commands
 
-| Command    | Description                           | Example        |
-| ---------- | ------------------------------------- | -------------- |
-| `F` or `f` | Move forward (1000 steps)             | `F`            |
-| `B` or `b` | Move backward (1000 steps)            | `B`            |
-| `S` or `s` | Stop motor immediately                | `S`            |
-| `H` or `h` | Move to home position (0)             | `H`            |
-| `+`        | Increase speed by 100 steps/sec       | `+`            |
-| `-`        | Decrease speed by 100 steps/sec       | `-`            |
-| `?`        | Show current status                   | `?`            |
-| `R` or `r` | Rotate one full revolution            | `R`            |
-| `N` or `n` | Rotate N steps (prompts for number)   | `N` then `100` |
-| `A` or `a` | Rotate N degrees (prompts for number) | `A` then `90`  |
-| `E` or `e` | Toggle motor enable/disable           | `E`            |
-| Any other  | Show help menu                        | `help`         |
+| Command    | Description                                                    | Example       |
+| ---------- | -------------------------------------------------------------- | ------------- |
+| `S` or `s` | Stop motor immediately                                         | `S`           |
+| `H` or `h` | Home - Move to home position (0)                               | `H`           |
+| `0`        | Zeroing home - Set current position as home                    | `0`           |
+| `+`        | Increase speed by 100 steps/sec                                | `+`           |
+| `-`        | Decrease speed by 100 steps/sec                                | `-`           |
+| `?`        | Show current status                                            | `?`           |
+| `N` or `n` | Nudge - Move 1 step                                            | `n`           |
+| `M` or `m` | Map - Set angle for trigger (prompts for degrees, no movement) | `m` then `90` |
+| `T` or `t` | Trigger - Rotate stored angle CW then return CCW               | `t`           |
+| `I` or `i` | Inverse - Reverse clockwise/counterclockwise                   | `i`           |
+| `E` or `e` | Toggle motor enable/disable                                    | `E`           |
+| Any other  | Show help menu                                                 | `help`        |
 
 ### Command Examples
 
 ```
 ?          # Show status
-R          # Rotate one full revolution (200 steps)
-F          # Move forward 1000 steps
-B          # Move backward 1000 steps
+n          # Nudge (move 1 step)
+m          # Map angle, then enter: 90 (stores 90 degrees)
+t          # Trigger (rotates stored angle and returns)
+h          # Return to home position
+0          # Set current position as home
+i          # Reverse direction
 +          # Increase speed
 -          # Decrease speed
-N          # Then enter: 500 (moves 500 steps)
-A          # Then enter: 45 (rotates 45 degrees)
-H          # Return to home position
-S          # Stop immediately
+s          # Stop immediately
 ```
+
+### Important Notes
+
+- **Map Command (`m`)**: Stores an angle for use with trigger. Does NOT move the motor.
+- **Trigger Command (`t`)**: Uses the angle set by map command. Rotates forward then automatically returns.
+- **Safety**: Trigger command ignores new requests while a trigger is in progress to prevent position creep.
+- **Default Angle**: No default angle - must use `m` command first before using `t`.
 
 ## 🔌 Hardware Connections
 

@@ -102,30 +102,35 @@ Try these in order:
    ```
 
 **Verification:**
-After each swap, test with 'R' command (one revolution). Motor should rotate smoothly.
+After each swap, test with 'n' command (nudge - 1 step) or 't' command (trigger). Motor should rotate smoothly.
 
 ### Issue 3: Motor Moves in Wrong Direction
 
 **Symptoms:**
 - Motor rotates but opposite to expected
-- Forward command moves backward
-- Backward command moves forward
+- Trigger command moves in wrong direction
+- Nudge moves in wrong direction
 
 **Solutions:**
 
-**Option 1: Software Fix (Recommended)**
+**Option 1: Use Inverse Command (Easiest)**
+```
+Send 'i' command to reverse direction
+```
+
+**Option 2: Software Fix**
 ```cpp
 // In include/pins.h, change:
 static const bool DIR_INVERT = true;  // Change from false to true
 ```
 
-**Option 2: Hardware Fix**
+**Option 3: Hardware Fix**
 ```
 Swap DIR+ and DIR- connections on CL86T
 ```
 
 **Verification:**
-After fix, test with 'F' (forward) and 'B' (backward) commands.
+After fix, test with 'n' (nudge) or 't' (trigger) commands. Motor should move in expected direction.
 
 ### Issue 4: Motor Moves Erratically or Stutters
 

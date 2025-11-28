@@ -436,19 +436,20 @@ Using multimeter:
 #### 7.2 Initial Test
 1. Send '?' command via serial monitor
 2. Verify Arduino responds with status
-3. Send 'R' command to rotate one revolution
+3. Send 'n' command to nudge (move 1 step)
 4. Observe motor movement
 
 ### Step 9: Verification and Calibration
 
 #### 8.1 Basic Movement Test
-- Test forward movement (F command)
-- Test backward movement (B command)
+- Test nudge movement (n command - 1 step)
 - Test stop (S command)
 - Test home position (H command)
+- Test zeroing home (0 command)
 
 #### 8.2 Direction Verification
-- If motor moves opposite to expected, change `DIR_INVERT` in `pins.h`
+- If motor moves opposite to expected, use 'i' command to inverse direction
+- Or change `DIR_INVERT` in `pins.h`
 - Or swap DIR+ and DIR- connections
 
 #### 8.3 Speed Calibration
@@ -456,10 +457,11 @@ Using multimeter:
 - Find optimal speed for your application
 - Note any vibration or resonance issues
 
-#### 8.4 Position Accuracy
-- Test step accuracy (N command with known step count)
-- Test degree accuracy (A command with known angles)
-- Verify motor returns to home position accurately
+#### 8.4 Position Accuracy and Trigger Test
+- Test map command: 'm' then enter angle (e.g., 90)
+- Test trigger command: 't' (should rotate and return to start)
+- Verify motor returns to starting position accurately after trigger
+- Test multiple triggers to ensure no position creep
 
 ## Troubleshooting
 

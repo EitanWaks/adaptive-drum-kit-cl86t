@@ -3,16 +3,16 @@
 ## Serial Commands
 
 ```
-F/f  - Move forward (1000 steps)
-B/b  - Move backward (1000 steps)
 S/s  - Stop motor
-H/h  - Move to home (position 0)
+H/h  - Home (move to home position)
+0    - Zeroing home (set current position as home)
 +    - Increase speed (+100 steps/sec)
 -    - Decrease speed (-100 steps/sec)
 ?    - Show status
-R/r  - Rotate one full revolution (200 steps)
-N/n  - Rotate N steps (prompts for number)
-A/a  - Rotate N degrees (prompts for number)
+N/n  - Nudge (move 1 step)
+M/m  - Map (set angle for trigger, prompts for degrees, no movement)
+T/t  - Trigger (rotate stored angle CW then return CCW)
+I/i  - Inverse (reverse clockwise/counterclockwise)
 E/e  - Toggle enable/disable
 ```
 
@@ -85,9 +85,9 @@ Blue   → B-  (Phase B negative)
 ### Test Motor
 ```
 ?    # Check status
-R    # One full revolution
-F    # Forward test
-B    # Backward test
+n    # Nudge (1 step)
+m    # Map angle, then enter: 90
+t    # Trigger (rotate and return)
 ```
 
 ### Adjust Speed
@@ -100,8 +100,10 @@ B    # Backward test
 ### Position Control
 ```
 H    # Go home
-A    # Then enter: 90 (for 90 degrees)
-N    # Then enter: 100 (for 100 steps)
+0    # Set current position as home
+n    # Nudge (1 step)
+m    # Map angle (stores for trigger)
+t    # Trigger (uses mapped angle)
 ```
 
 ## Heat Dissipation

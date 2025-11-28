@@ -110,7 +110,7 @@ POWER-ON SEQUENCE
 4. Plug in power supply AC input
 5. Observe power supply LED/indicator
 6. Send '?' command to verify communication
-7. Send 'R' command to test one revolution
+7. Send 'n' command to nudge (test 1 step movement)
 
 ================================================================================
 SAFETY WARNINGS

@@ -11,16 +11,16 @@
  *   - Microcontroller: Arduino UNO R3
  *
  * Serial Commands:
- *   'F' or 'f' - Move forward (CW)
- *   'B' or 'b' - Move backward (CCW)
  *   'S' or 's' - Stop motor
  *   'H' or 'h' - Move to home position (0 steps)
+ *   '0' - Set current position as home (zeroing home)
  *   '+' - Increase speed
  *   '-' - Decrease speed
  *   '?' - Show current status
- *   'R' or 'r' - Rotate one full revolution
- *   'N' or 'n' - Rotate N steps (format: N100 for 100 steps)
- *   'A' or 'a' - Rotate N degrees (format: A90 for 90 degrees)
+ *   'N' or 'n' - Nudge (move 1 step)
+ *   'M' or 'm' - Map/calibrate rotating N degrees (stores angle for trigger)
+ *   'T' or 't' - Trigger (rotate stored angle CW then return CCW)
+ *   'I' or 'i' - Inverse (reverse clockwise/counterclockwise direction)
  */
 
 #include <Arduino.h>
@@ -33,6 +33,11 @@ AccelStepper motor(AccelStepper::DRIVER, PIN_STEP, PIN_DIR);
 // ---- State Variables ----
 float currentSpeed = SPEED_DEFAULT_SPS;
 bool motorEnabled = true;
+bool directionInverted = DIR_INVERT;
+long returnToPosition = 0;  // For rotate-and-return command
+bool waitingForReturn = false;  // Flag to track if we're in return phase
+bool inReturnPhase = false;  // Flag to track if we're currently returning (not going forward)
+float mappedAngle = 0.0f;  // Stored angle from map command (in degrees)
 
 // ---- Utility Functions ----
 /**
@@ -99,28 +104,20 @@ void processSerialCommand()
 
   char cmd = Serial.read();
 
-  // Clear any remaining characters in buffer
+  // Clear any remaining characters in buffer (like newline after command)
+  while (Serial.available() && (Serial.peek() == '\n' || Serial.peek() == '\r'))
+    Serial.read();
+
+  // Clear any other remaining characters
   while (Serial.available())
     Serial.read();
 
+  // Debug: print received command (can be removed later)
+  // Serial.print(F("Received command: "));
+  // Serial.println(cmd);
+
   switch (cmd)
   {
-    case 'F':
-    case 'f':
-      // Move forward (clockwise)
-      Serial.println(F("Moving forward..."));
-      motor.setMaxSpeed(currentSpeed);
-      motor.move(1000); // Move 1000 steps forward
-      break;
-
-    case 'B':
-    case 'b':
-      // Move backward (counter-clockwise)
-      Serial.println(F("Moving backward..."));
-      motor.setMaxSpeed(currentSpeed);
-      motor.move(-1000); // Move 1000 steps backward
-      break;
-
     case 'S':
     case 's':
       // Stop motor
@@ -135,6 +132,16 @@ void processSerialCommand()
       Serial.println(F("Moving to home position..."));
       motor.setMaxSpeed(currentSpeed);
       motor.moveTo(0);
+      waitingForReturn = false;  // Cancel any pending return
+      inReturnPhase = false;  // Reset return phase
+      break;
+
+    case '0':
+      // Set current position as home (zeroing home)
+      motor.setCurrentPosition(0);
+      Serial.println(F("Current position set as home (0)"));
+      waitingForReturn = false;  // Cancel any pending return
+      inReturnPhase = false;  // Reset return phase
       break;
 
     case '+':
@@ -152,51 +159,105 @@ void processSerialCommand()
       printStatus();
       break;
 
-    case 'R':
-    case 'r':
-      // Rotate one full revolution
-      Serial.println(F("Rotating one full revolution..."));
-      motor.setMaxSpeed(currentSpeed);
-      motor.move(STEPS_PER_REV);
-      break;
-
     case 'N':
     case 'n':
-      // Rotate N steps (wait for number)
-      Serial.println(F("Enter number of steps (e.g., 100):"));
-      while (!Serial.available())
-        motor.run(); // Keep motor running while waiting
-
-      if (Serial.available())
-      {
-        long steps = Serial.parseInt();
-        Serial.print(F("Moving "));
-        Serial.print(steps);
-        Serial.println(F(" steps..."));
-        motor.setMaxSpeed(currentSpeed);
-        motor.move(steps);
-      }
+      // Nudge (move 1 step)
+      motor.setMaxSpeed(currentSpeed);
+      motor.move(1);
+      waitingForReturn = false;  // Cancel any pending return
+      inReturnPhase = false;  // Reset return phase
       break;
 
-    case 'A':
-    case 'a':
-      // Rotate N degrees (wait for number)
-      Serial.println(F("Enter number of degrees (e.g., 90):"));
-      while (!Serial.available())
+    case 'M':
+    case 'm':
+    {
+      // Map/calibrate rotating N degrees (stores angle for trigger)
+      Serial.println(F("Enter number of degrees to map (e.g., 90):"));
+
+      // Read input until Enter/Return is pressed
+      String inputString = "";
+      while (true)
+      {
         motor.run(); // Keep motor running while waiting
 
-      if (Serial.available())
+        if (Serial.available())
+        {
+          char inChar = Serial.read();
+
+          // Check for Enter/Return (newline or carriage return)
+          if (inChar == '\n' || inChar == '\r')
+          {
+            if (inputString.length() > 0)
+            {
+              Serial.println(); // Echo the newline
+              break; // Got the input, exit loop
+            }
+            // If empty, continue waiting
+          }
+          else if ((inChar >= '0' && inChar <= '9') || inChar == '.' || inChar == '-' || inChar == '+')
+          {
+            // Valid character for number input - echo it back
+            inputString += inChar;
+            Serial.print(inChar); // Echo the character so user can see what they're typing
+          }
+          // Ignore other characters
+        }
+      }
+
+      // Parse the input string
+      if (inputString.length() > 0)
       {
-        float degrees = Serial.parseFloat();
+        float degrees = inputString.toFloat();
+        mappedAngle = degrees;  // Store the angle
         long steps = degToSteps(degrees);
-        Serial.print(F("Moving "));
+        Serial.print(F("Mapping rotation of "));
         Serial.print(degrees);
         Serial.print(F(" degrees ("));
         Serial.print(steps);
-        Serial.println(F(" steps)..."));
+        Serial.print(F(" steps) - stored for trigger (no movement)"));
+        Serial.println();
+      }
+      break;
+    }
+
+    case 'T':
+    case 't':
+      // Trigger (rotate stored angle CW then return CCW)
+      if (mappedAngle == 0.0f)
+      {
+        Serial.println(F("Error: No angle mapped. Use M command first to set angle."));
+        break;
+      }
+      // Ignore if a trigger is already in progress to prevent creeping
+      if (waitingForReturn)
+      {
+        Serial.println(F("Trigger already in progress. Wait for completion."));
+        break;
+      }
+      {
+        long steps = degToSteps(mappedAngle);
+        returnToPosition = motor.currentPosition();
+        inReturnPhase = false;  // Start in forward phase
+        Serial.print(F("Trigger: Rotating "));
+        Serial.print(mappedAngle);
+        Serial.print(F(" degrees CW ("));
+        Serial.print(steps);
+        Serial.print(F(" steps) from position "));
+        Serial.print(returnToPosition);
+        Serial.println(F(", then returning..."));
         motor.setMaxSpeed(currentSpeed);
         motor.move(steps);
+        waitingForReturn = true;  // Set flag to return after reaching target
       }
+      break;
+
+    case 'I':
+    case 'i':
+      // Reverse clockwise/counterclockwise direction
+      directionInverted = !directionInverted;
+      motor.setPinsInverted(directionInverted, false, EN_ACTIVE_LOW);
+      Serial.print(F("Inverse: Direction "));
+      Serial.println(directionInverted ? F("INVERTED") : F("NORMAL"));
       break;
 
     case 'E':
@@ -210,16 +271,16 @@ void processSerialCommand()
 
     default:
       Serial.println(F("\n=== Available Commands ==="));
-      Serial.println(F("F/f - Move forward (1000 steps)"));
-      Serial.println(F("B/b - Move backward (1000 steps)"));
       Serial.println(F("S/s - Stop motor"));
-      Serial.println(F("H/h - Move to home (position 0)"));
+      Serial.println(F("H/h - Home (move to home position)"));
+      Serial.println(F("0   - Zeroing home (set current position as home)"));
       Serial.println(F("+   - Increase speed by 100 steps/sec"));
       Serial.println(F("-   - Decrease speed by 100 steps/sec"));
       Serial.println(F("?   - Show status"));
-      Serial.println(F("R/r - Rotate one full revolution"));
-      Serial.println(F("N/n - Rotate N steps (prompts for number)"));
-      Serial.println(F("A/a - Rotate N degrees (prompts for number)"));
+      Serial.println(F("N/n - Nudge (move 1 step)"));
+      Serial.println(F("M/m - Map (set angle for trigger, prompts for degrees)"));
+      Serial.println(F("T/t - Trigger (rotate stored angle CW then return CCW)"));
+      Serial.println(F("I/i - Inverse (reverse clockwise/counterclockwise)"));
       Serial.println(F("E/e - Toggle motor enable"));
       Serial.println(F("========================"));
       break;
@@ -242,7 +303,7 @@ void setup()
   pinMode(PIN_EN, OUTPUT);
 
   // Initialize motor
-  motor.setPinsInverted(DIR_INVERT, false, EN_ACTIVE_LOW);
+  motor.setPinsInverted(directionInverted, false, EN_ACTIVE_LOW);
   motor.setMinPulseWidth(3); // Minimum pulse width in microseconds
   motor.setAcceleration(ACCEL_SPS2);
   motor.setMaxSpeed(currentSpeed);
@@ -275,6 +336,26 @@ void loop()
 
   // Run motor (non-blocking)
   motor.run();
+
+  // Handle rotate-and-return command
+  if (waitingForReturn && motor.distanceToGo() == 0)
+  {
+    if (!inReturnPhase)
+    {
+      // Motor reached forward target, now return to starting position
+      Serial.println(F("Reached target, returning to start position..."));
+      motor.setMaxSpeed(currentSpeed);
+      motor.moveTo(returnToPosition);
+      inReturnPhase = true;  // Now we're in return phase
+    }
+    else
+    {
+      // Motor has returned to starting position - complete!
+      Serial.println(F("Return complete. Trigger finished."));
+      waitingForReturn = false;  // Clear flag, motion complete
+      inReturnPhase = false;  // Reset phase flag
+    }
+  }
 
   // Small delay to prevent overwhelming the serial buffer
   delayMicroseconds(100);

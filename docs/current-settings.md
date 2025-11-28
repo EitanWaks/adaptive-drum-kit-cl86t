@@ -166,7 +166,7 @@ S1 Rotary Switch Positions:
 After setting S1:
 
 1. **Test motor operation:**
-   - Send `R` command (one full revolution)
+   - Send `n` command (nudge - 1 step) or `t` command (trigger)
    - Observe motor smoothness and torque
 
 2. **Monitor temperature:**

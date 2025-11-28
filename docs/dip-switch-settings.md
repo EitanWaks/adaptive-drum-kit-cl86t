@@ -7,11 +7,11 @@ Based on the firmware configuration and motor specifications, here are the recom
 ### Pulse/Revolution Settings (SW1-SW4)
 
 | Switch | Position | Setting |
-|--------|----------|---------|
-| SW1 | **ON** | |
-| SW2 | **ON** | |
-| SW3 | **ON** | |
-| SW4 | **ON** | |
+| ------ | -------- | ------- |
+| SW1    | **ON**   |         |
+| SW2    | **ON**   |         |
+| SW3    | **ON**   |         |
+| SW4    | **ON**   |         |
 
 **Result: 200 pulse/revolution** (Full step mode)
 
@@ -19,12 +19,12 @@ This matches the 34E1K-120 motor specification of 200 steps per revolution (1.8�
 
 ### Mode Settings (SW5-SW8)
 
-| Switch | Function | Position | Setting | Reason |
-|--------|----------|----------|---------|--------|
-| SW5 | Direction | **ON** | Clockwise (CW) | ⚠️ **CORRECTED:** ON = CW, OFF = CCW |
-| SW6 | Control Mode | **OFF** | Closed Loop | Use closed-loop mode for better accuracy and step loss compensation |
-| SW7 | Pulse Mode | **OFF** | Pul/Dir | Matches our code which uses STEP and DIR pins |
-| SW8 | Brake/Pend | **OFF** | Brake Output | Brake mode for safer operation |
+| Switch | Function     | Position | Setting        | Reason                                                              |
+| ------ | ------------ | -------- | -------------- | ------------------------------------------------------------------- |
+| SW5    | Direction    | **ON**   | Clockwise (CW) | ⚠️ **CORRECTED:** ON = CW, OFF = CCW                                 |
+| SW6    | Control Mode | **OFF**  | Closed Loop    | Use closed-loop mode for better accuracy and step loss compensation |
+| SW7    | Pulse Mode   | **OFF**  | Pul/Dir        | Matches our code which uses STEP and DIR pins                       |
+| SW8    | Brake/Pend   | **OFF**  | Brake Output   | Brake mode for safer operation                                      |
 
 ## Complete DIP Switch Configuration
 
@@ -127,8 +127,9 @@ After setting the DIP switches:
 2. **Set all switches** according to recommendations
 3. **Double-check** switch positions
 4. **Power on** and test with serial commands:
-   - Send `R` command (one full revolution = 200 steps)
-   - Verify motor rotates exactly one revolution
+   - Send `n` command (nudge - 1 step) to test basic movement
+   - Send `m` then `90` to map 90 degrees, then `t` to trigger
+   - Verify motor rotates and returns accurately
    - Check direction matches expectations
 
 ## Troubleshooting
