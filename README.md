@@ -18,11 +18,14 @@ This is an implementation designed for the hardware stack:
 
 - **Simple Serial Control**: Control motor via serial commands from computer
 - **AccelStepper Library**: Smooth acceleration and deceleration
-- **Flexible Commands**: Move forward, backward, rotate by steps or degrees
+- **Flexible Commands**: Nudge, home, map an angle, trigger, and return
 - **Speed Control**: Adjustable speed with real-time changes
 - **Position Control**: Move to specific positions or home
-- **Enable Control**: Enable/disable motor as needed
-- **Well Documented**: Comprehensive wiring diagrams and setup guides
+- **Enable Control**: Firmware supports optional enable output, but `ENA+` is not wired during bring-up
+- **FSR Input**: Current firmware reads a DF9-16 FSR on A0
+- **Load Sensors**: Support for up to 2 strain gauge load cells (HX711)
+- **Sensor Calibration**: Built-in calibration commands for all sensors
+- **Well Documented**: Consolidated hardware setup and wiring guide
 
 ## 🚀 Quick Start
 
@@ -40,15 +43,18 @@ This is an implementation designed for the hardware stack:
    cd code/adaptive-drum-kit-cl86t
    ```
 
-2. **Install PlatformIO dependencies**
+2. **Build once to install PlatformIO dependencies**
    ```bash
-   pio lib install
+   pio run
    ```
 
-3. **Connect hardware** (see [Wiring Diagram](docs/wiring-diagram.md))
+   Dependencies are declared in `platformio.ini` under `lib_deps`, so PlatformIO installs them automatically.
+
+3. **Connect hardware** (see [Hardware Setup and Wiring Guide](docs/hardware-setup.md))
    - Connect power supply to CL86T driver
    - Connect motor to CL86T driver
-   - Connect Arduino to CL86T driver (pins 2, 3, 4, GND)
+   - Connect Arduino to CL86T driver (`D2 -> PUL+`, `D3 -> DIR+`, `GND -> PUL-`, `DIR-`, and `ENA-`)
+   - Leave Arduino Pin 4 disconnected from `ENA+` for initial bring-up
 
 4. **Upload firmware**
    ```bash
@@ -83,7 +89,12 @@ This is an implementation designed for the hardware stack:
 | `M` or `m` | Map - Set angle for trigger (prompts for degrees, no movement) | `m` then `90` |
 | `T` or `t` | Trigger - Rotate stored angle CW then return CCW               | `t`           |
 | `I` or `i` | Inverse - Reverse clockwise/counterclockwise                   | `i`           |
-| `E` or `e` | Toggle motor enable/disable                                    | `E`           |
+| `E` or `e` | Toggle firmware enable output; only meaningful if `ENA+` is wired later | `E` |
+| `P` or `p` | Read FSR sensor value on A0                                   | `P`           |
+| `L` or `l` | Read load sensor values                                        | `L`           |
+| `C` or `c` | Calibrate all sensors (set zero/baseline)                      | `C`           |
+| `D` or `d` | Diagnostic mode - continuous A0 reading                        | `D`           |
+| `A` or `a` | Toggle FSR auto-trigger mode                                   | `A`           |
 | Any other  | Show help menu                                                 | `help`        |
 
 ### Command Examples
@@ -116,31 +127,40 @@ s          # Stop immediately
 | ----------- | ---------------- | ----------- |
 | Digital 2   | PUL+             | Step pulse  |
 | Digital 3   | DIR+             | Direction   |
-| Digital 4   | ENA+             | Enable      |
+| Digital 4   | Not connected during bring-up | Reserved for optional future ENA+ control |
 | GND         | PUL-, DIR-, ENA- | Ground      |
 
 | Power Supply | CL86T | Description    |
 | ------------ | ----- | -------------- |
-| +V (60V)     | VCC   | Power positive |
-| -V (GND)     | GND   | Power ground   |
+| +V (60V)     | AC    | DC input to non-polarized CL86T AC terminal |
+| -V (GND)     | AC    | DC input to non-polarized CL86T AC terminal |
 
 | Motor Wire | CL86T | Description      |
 | ---------- | ----- | ---------------- |
-| Wire 1     | A+    | Phase A positive |
-| Wire 2     | A-    | Phase A negative |
-| Wire 3     | B+    | Phase B positive |
-| Wire 4     | B-    | Phase B negative |
+| Black      | A+    | Phase A positive |
+| Green      | A-    | Phase A negative |
+| Red        | B+    | Phase B positive |
+| Blue       | B-    | Phase B negative |
 
-**⚠️ For detailed wiring instructions, see [Wiring Diagram](docs/wiring-diagram.md)**
+| Arduino Pin | Sensor Component | Description |
+| ----------- | ---------------- | ----------- |
+| Analog A0   | DF9-16 FSR | Voltage divider with 10k resistor |
+| Digital 5   | HX711 #1 DT      | Load Sensor 1 Data |
+| Digital 6   | HX711 #1 SCK     | Load Sensor 1 Clock |
+| Digital 7   | HX711 #2 DT      | Load Sensor 2 Data |
+| Digital 8   | HX711 #2 SCK     | Load Sensor 2 Clock |
+| 5V          | HX711 VCC        | Power for HX711 modules |
+| GND         | All sensor grounds | Common ground |
+
+**⚠️ For all wiring, driver settings, sensors, and troubleshooting, see [Hardware Setup and Wiring Guide](docs/hardware-setup.md).**
 
 ## 📁 Project Structure
 
 ```
 adaptive-drum-kit-cl86t/
 ├── docs/
-│   ├── wiring-diagram.md      # Detailed wiring diagrams
-│   ├── hardware-setup.md      # Step-by-step setup guide
-│   └── troubleshooting.md    # Common issues and solutions
+│   ├── hardware-setup.md      # Consolidated hardware, wiring, setup, and troubleshooting guide
+│   └── code-proposal-ip-alignment.md # Future architecture proposal
 ├── include/
 │   └── pins.h                 # Pin definitions and configuration
 ├── src/
@@ -158,7 +178,7 @@ Edit `include/pins.h` to change pin assignments:
 ```cpp
 static const uint8_t PIN_STEP = 2;   // Step pulse pin
 static const uint8_t PIN_DIR = 3;    // Direction pin
-static const uint8_t PIN_EN = 4;     // Enable pin
+static const uint8_t PIN_EN = 4;     // Reserved for optional future ENA+ control
 ```
 
 ### Motor Parameters
@@ -186,19 +206,19 @@ static const bool EN_ACTIVE_LOW = false; // Enable active low/high
 
 ## 📚 Documentation
 
-- **[Wiring Diagram](docs/wiring-diagram.md)** - Complete wiring instructions with diagrams
-- **[CL86T Specifications](docs/cl86t-specifications.md)** - Complete CL86T driver specifications
-- **[Hardware Setup](docs/hardware-setup.md)** - Step-by-step setup guide
-- **[DIP Switch Settings](docs/dip-switch-settings.md)** - DIP switch configuration guide
-- **[Microstepping Settings](docs/microstepping-settings.md)** - Complete microstepping options
-- **[Current Settings](docs/current-settings.md)** - S1 rotary switch current and gain configuration
-- **[Power Supply Selection](docs/power-supply-selection.md)** - Power supply selection and configuration
-- **[Optional Connections](docs/optional-connections.md)** - EMI filter, fault output, brake output
-- **[Motor Wire Identification](docs/motor-wire-identification.md)** - How to identify and connect motor and encoder wires
-- **[Terminal Reference](docs/terminal-reference.md)** - Complete terminal listing for CL86T and LE-350-60
-- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
+- **[Hardware Setup and Wiring Guide](docs/hardware-setup.md)** - Consolidated wiring, CL86T setup, sensors, first power-on, and troubleshooting
+- **[Code Proposal: IP Alignment](docs/code-proposal-ip-alignment.md)** - Future architecture proposal
 
 ## 🔧 Development
+
+### PlatformIO Environments
+
+The default environment is `uno_official`.
+
+```bash
+pio run
+pio run --environment uno_sanesmart
+```
 
 ### Building
 
@@ -229,7 +249,7 @@ pio run --target clean
 ### Motor Doesn't Move
 - Check power supply is on
 - Verify all connections
-- Check enable signal (try 'E' command)
+- Disconnect Arduino Pin 4 from `ENA+` if present; keep `ENA-` grounded
 - Verify motor phase wiring
 
 ### Motor Vibrates
@@ -244,7 +264,7 @@ pio run --target clean
 - Verify COM port
 - Check serial monitor baud rate (115200)
 
-**For more troubleshooting, see [Troubleshooting Guide](docs/troubleshooting.md)**
+**For more troubleshooting, see [Hardware Setup and Wiring Guide](docs/hardware-setup.md).**
 
 ## ⚠️ Safety Warnings
 
@@ -273,11 +293,13 @@ pio run --target clean
 
 Once basic motor control is working:
 
-1. **Add Closed-Loop Feedback** - Configure CL86T encoder input
-2. **Implement Position Control** - Add position feedback and calibration
-3. **Add Sensors** - Integrate force sensors, triggers, etc.
-4. **Develop Control Logic** - Implement drum-specific control algorithms
-5. **Add Safety Features** - Limit switches, current monitoring, etc.
+1. **Connect Sensors** - Wire up the DF9-16 FSR and load sensors (see [Hardware Setup and Wiring Guide](docs/hardware-setup.md))
+2. **Calibrate Sensors** - Use 'C' command to calibrate all sensors
+3. **Test Sensors** - Use 'P' and 'L' commands to read sensor values
+4. **Expand Feedback** - Add firmware-level use of driver alarm/status outputs if needed
+5. **Implement Position Calibration** - Add travel limits and beater contact calibration
+6. **Develop Control Logic** - Integrate sensor readings with motor control
+7. **Add Safety Features** - Limit switches, current monitoring, etc.
 
 ## 📄 License
 
@@ -293,13 +315,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 For issues or questions:
-- Check [Troubleshooting Guide](docs/troubleshooting.md)
-- Review [Hardware Setup Guide](docs/hardware-setup.md)
+- Review [Hardware Setup and Wiring Guide](docs/hardware-setup.md)
 - Consult component datasheets and manuals
 
 ---
 
 **⚠️ Always follow safety guidelines when working with high-voltage power supplies and motors.**
 
-**© 2025 Adaptive Drum Kit Project. All rights reserved.**
+**© 2026 Adaptive Drum Kit Project. All rights reserved.**
 

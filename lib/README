@@ -1,9 +1,0 @@
-# Library Directory
-
-This directory is for custom libraries and third-party code.
-
-Currently using:
-- AccelStepper library (via PlatformIO lib_deps)
-
-Add custom libraries here if needed.
-

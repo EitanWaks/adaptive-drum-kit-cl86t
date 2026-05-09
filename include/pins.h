@@ -9,7 +9,8 @@
  *   PUL- -> Arduino GND
  *   DIR+ -> Arduino DIR pin (via 1kΩ resistor recommended)
  *   DIR- -> Arduino GND
- *   ENA+ -> Arduino EN pin (optional, for enable/disable control)
+ *   ENA+ -> Leave disconnected from Arduino during initial bring-up
+ *           (optional future enable/disable control after polarity is verified)
  *   ENA- -> Arduino GND
  *
  * Note: The CL86T uses opto-isolated inputs. The + terminals are
@@ -21,7 +22,33 @@
 // ---- Step/Direction/Enable Pins ----
 static const uint8_t PIN_STEP = 2;   // PUL+ on CL86T
 static const uint8_t PIN_DIR = 3;    // DIR+ on CL86T
-static const uint8_t PIN_EN = 4;     // ENA+ on CL86T (optional)
+static const uint8_t PIN_EN = 4;     // Reserved for optional future ENA+ control
+
+// ---- Force-Sensitive Resistor (FSR) Sensor Pins ----
+// FSR sensors connect to analog pins via voltage divider circuit
+// Each sensor needs a 10kΩ resistor in voltage divider configuration
+// Maximum 6 sensors on Arduino Uno (A0-A5)
+static const uint8_t PIN_FSR_1 = A0;  // FSR sensor 1
+static const uint8_t PIN_FSR_2 = A1;  // FSR sensor 2
+static const uint8_t PIN_FSR_3 = A2;  // FSR sensor 3
+static const uint8_t PIN_FSR_4 = A3;  // FSR sensor 4
+static const uint8_t PIN_FSR_5 = A4;  // FSR sensor 5
+static const uint8_t PIN_FSR_6 = A5;  // FSR sensor 6
+
+// Number of FSR sensors configured
+static const uint8_t NUM_FSR_SENSORS = 1;  // DEBUG: Only A0 for now
+
+// ---- Load Sensor (HX711) Pins ----
+// HX711 amplifier module for strain gauge load cells
+// Each HX711 module requires 2 digital pins (clock and data)
+// Maximum 2 HX711 modules on Arduino Uno (limited by available pins)
+static const uint8_t PIN_HX711_1_DT = 5;   // HX711 #1 Data pin
+static const uint8_t PIN_HX711_1_SCK = 6;  // HX711 #1 Clock pin
+static const uint8_t PIN_HX711_2_DT = 7;   // HX711 #2 Data pin
+static const uint8_t PIN_HX711_2_SCK = 8;  // HX711 #2 Clock pin
+
+// Number of load sensors configured
+static const uint8_t NUM_LOAD_SENSORS = 2;
 
 // ---- Motor Specifications ----
 // 34E1K-120: NEMA 34 stepper motor, 1.8° per step

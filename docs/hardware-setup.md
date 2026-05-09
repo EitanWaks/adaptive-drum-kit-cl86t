@@ -1,562 +1,327 @@
-# Hardware Setup Guide
+# Hardware Setup and Wiring Guide
 
-## Overview
+## Hardware Stack
 
-This guide walks you through the complete hardware setup process for the adaptive drum kit using the CL86T closed-loop stepper driver system.
+| Component | Model | Notes |
+| --- | --- | --- |
+| Microcontroller | Arduino UNO R3 | 5V logic, serial monitor at 115200 baud |
+| Driver | CL86T closed-loop stepper driver | Use 5V input mode for Arduino signals |
+| Motor | 34E1K-120 NEMA 34 | 1.8 degrees/step, 200 full steps/rev, 6.0A rated |
+| Power supply | LE-350-60 | 60V DC, 5.8A max |
+| Force sensor | DF9-16 FSR | Current firmware reads A0 only |
+| Load sensors | HX711 modules | Up to two load cells on D5-D8 |
 
-## Prerequisites
+## Safety
 
-Before starting, ensure you have:
+- Disconnect AC power before wiring or changing any connection.
+- The LE-350-60 outputs 60V DC. Treat it as hazardous.
+- Do not short `+V` to `-V` on the power supply.
+- Use 14-16 AWG wire for power wiring and 22-24 AWG wire for control/sensor wiring.
+- Keep motor power wiring separated from signal and sensor wiring.
+- Confirm all terminal screws are tight before applying power.
+- Keep the motor shaft free to rotate during first tests.
 
-- [ ] All hardware components (motor, driver, power supply, Arduino)
-- [ ] Appropriate wire (14-16 AWG for power, 22-24 AWG for signals)
-- [ ] Wire strippers and crimping tools
-- [ ] Multimeter for testing
-- [ ] Safety equipment (safety glasses, insulated tools)
-- [ ] Well-lit, clean workspace
+## Correct Baseline Wiring
 
-## Safety First
+### Arduino to CL86T Control Signals
 
-**⚠️ IMPORTANT SAFETY WARNINGS:**
+Use this for initial bring-up:
 
-1. **High Voltage:** The LE-350-60 power supply outputs 60V DC, which can be dangerous
-2. **Always disconnect power** before making or changing connections
-3. **Double-check all connections** before applying power
-4. **Use proper wire gauge** for current capacity
-5. **Ensure proper grounding** of all components
-6. **Keep work area dry** and free of conductive materials
-7. **Never touch live connections** while power is applied
+```text
+Arduino Pin 2  ->  CL86T PUL+    Step pulse
+Arduino Pin 3  ->  CL86T DIR+    Direction
+Arduino GND    ->  CL86T PUL-    Signal ground
+Arduino GND    ->  CL86T DIR-    Signal ground
+Arduino GND    ->  CL86T ENA-    Enable common/reference
+```
 
-## Step-by-Step Setup
+Do not connect Arduino Pin 4 to `ENA+` during initial bring-up. In this hardware, connecting `ENA+` to Arduino Pin 4 caused zero motor movement.
 
-### Step 1: Prepare the Workspace
+`ENA-` is different: keep `ENA-` connected to Arduino GND/common signal ground with the other negative signal terminals. Only add driven `ENA+` control after basic PUL/DIR motion works and the CL86T enable polarity/timing has been verified against the driver manual and `EN_ACTIVE_LOW` in `include/pins.h`.
 
-1. Clear a clean, well-lit workspace
-2. Lay out all components
-3. Ensure adequate ventilation (power supply generates heat)
-4. Have multimeter and tools ready
+Optional protection after wiring is confirmed:
 
-### Step 2: Power Supply Setup
+```text
+Arduino Pin 2  ->  1k resistor  ->  CL86T PUL+
+Arduino Pin 3  ->  1k resistor  ->  CL86T DIR+
+```
 
-#### 2.1 Inspect Power Supply
-- Check LE-350-60 for physical damage
-- **Input Voltage:** Verify matches your AC supply (115/230V AC ±20%)
-- **Input Frequency:** 47-63 Hz
-- **Output:** Ensure set to 60V DC (adjustable ±10%: 54V-66V)
-- **Cooling:** Verify fan is free to rotate (fan cooling)
-- **Mounting:** Can be mounted vertically or horizontally
-- **Dimensions:** 215×115×30mm (8.5"×4.5"×1.2")
+Do not add `ENA+` resistor wiring during initial bring-up.
 
-#### 2.2 Connect AC Input
+### LE-350-60 Power Supply to CL86T
 
-**LE-350-60 AC Input Terminals:**
-- **L** (line/live) - Connect to hot wire
-- **N** (neutral) - Connect to neutral wire
-- **GND** (ground) - Connect to ground wire (safety)
+```text
+LE-350-60 +V (any one)  ->  CL86T AC terminal
+LE-350-60 -V (any one)  ->  CL86T AC terminal
+LE-350-60 GND           ->  frame/safety ground as appropriate
+```
 
-**AC Input Wire Colors:**
-- **Blue** → **L** (line/live)
-- **Brown** → **N** (neutral)
-- **Yellow** → **GND** (ground)
+The CL86T `AC` input terminals accept DC input and are non-polarized for DC, but keep the supply wiring cleanly labeled and never short `+V` to `-V`.
 
-**Connection Steps:**
-1. Connect **Blue** wire to **L** terminal (line/live)
-2. Connect **Brown** wire to **N** terminal (neutral)
-3. Connect **Yellow** wire to **GND** terminal (safety ground)
-4. **DO NOT** plug into wall outlet yet
-5. Verify input voltage matches supply (115/230V AC ±20%)
-6. Ensure proper grounding
+Typical AC input wire colors for the power supply:
 
-#### 2.3 Prepare DC Output Wires
-- Cut appropriate length of 14-16 AWG wire for VCC and GND
-- Strip ends (about 5mm)
-- Use red wire for VCC (+), black for GND (-)
-- Leave unconnected for now
+```text
+Blue    ->  L
+Brown   ->  N
+Yellow  ->  GND
+```
 
-#### 2.4 EMI Filter (Optional but Recommended)
+Verify local mains wiring standards before connecting AC.
 
-**⚠️ Recommended for Noise Immunity:**
+### Motor to CL86T
 
-If available, install EMI line filter between power supply and driver:
+This is the verified 34E1K-120 motor wiring:
 
-1. **Select EMI Filter:**
-   - Rated for 60V DC
-   - Rated for 5.8A minimum
-   - DC-rated filter
+```text
+Black  ->  CL86T A+
+Green  ->  CL86T A-
+Red    ->  CL86T B+
+Blue   ->  CL86T B-
+```
 
-2. **Installation:**
-   - Connect power supply output to filter input
-   - Connect filter output to CL86T VCC/GND
-   - Install as close to driver as possible
+If the motor vibrates but does not rotate, swap one phase pair: either `A+`/`A-` or `B+`/`B-`.
 
-3. **Benefits:**
-   - Reduces electrical noise
-   - Improves reliability in interference environments
-   - Prevents false triggering
+### Encoder to CL86T
 
-**Note:** Not strictly required, but recommended for best performance, especially in noisy environments or with multiple drivers.
-
-### Step 3: CL86T Driver Setup
+The CL86T powers the encoder from its encoder `VCC` terminal. Do not connect external 5V to encoder `VCC`.
 
-#### 3.1 Inspect Driver
-- Check CL86T for physical damage
-- Verify all terminals are clean and undamaged
-- Review terminal labels (VCC, GND, PUL+, PUL-, DIR+, DIR-, ENA+, ENA-, A+, A-, B+, B-)
-
-#### 3.2 Configure Driver Voltage Setting
-
-**⚠️ IMPORTANT: Set 5V/24V Rotating Switch**
-
-The CL86T factory default is 24V input signals. Since we're using Arduino (5V), you **must** set the rotating switch to **5V**:
-
-1. Locate the 5V/24V rotating switch on the CL86T driver
-2. Set it to **5V** position (for Arduino compatibility)
-3. Verify the setting before proceeding
-
-**If this switch is not set correctly:**
-- Arduino signals may not be recognized
-- Driver may not respond to commands
-- Motor will not move
-
-#### 3.3 Configure Driver DIP Switches
-
-**Recommended DIP Switch Settings:**
-
-| Switch | Position | Setting                    |
-| ------ | -------- | -------------------------- |
-| SW1    | **ON**   | Pulse/Rev                  |
-| SW2    | **ON**   | Pulse/Rev                  |
-| SW3    | **ON**   | Pulse/Rev                  |
-| SW4    | **ON**   | Pulse/Rev                  |
-| SW5    | **ON**   | Direction (Clockwise)      |
-| SW6    | **OFF**  | Control Mode (Closed Loop) |
-| SW7    | **OFF**  | Pulse Mode (Pul/Dir)       |
-| SW8    | **OFF**  | Mode (Brake Output)        |
-
-**Result:** 200 pulse/revolution, Clockwise, Closed Loop, Pul/Dir mode, Brake mode
-
-**Detailed explanation:** See [DIP Switch Settings Guide](dip-switch-settings.md)
-
-#### 3.3 Configure Current Setting (S1 Rotary Switch)
-
-**Recommended S1 Setting for 34E1K-120 (6.0A rated):**
-
-| Switch Position | Peak Current | RMS Current | Gains (Ki/Kp/Kp) | Recommendation                           |
-| --------------- | ------------ | ----------- | ---------------- | ---------------------------------------- |
-| **A**           | 8.0A         | 5.7A        | 0/25/25          | ⭐ **Recommended start** (smooth, stable) |
-| **B**           | 8.0A         | 5.7A        | 0/50/15          | Higher position gain (faster response)   |
-| **C**           | 8.0A         | 5.7A        | 0/100/5          | Maximum position gain (fastest response) |
-| **D-F**         | 8.0A         | 5.7A        | 16/var/var       | With velocity integral (better tracking) |
-| **4** (or 4-9)  | 7.0A         | 5.0A        | Various          | Alternative if motor runs too hot        |
-
-**How to Set:**
-1. Power OFF the system
-2. Locate S1 rotary switch on CL86T driver
-3. Rotate to position **A** (or any position A-F for 5.7A RMS)
-4. Verify position visually
-5. Power ON and test
-
-**Important Notes:**
-- **34E1K-120 is rated at 6.0A**, but CL86T maximum is 5.7A RMS
-- Position A-F provides 5.7A RMS (95% of motor rating) - safe and recommended
-- This is the maximum driver setting and appropriate for this motor
-- Monitor motor temperature during initial testing
-- If motor runs too hot, reduce to position 4 (5.0A RMS)
-
-**Complete S1 settings guide:** See [Current Settings Guide](current-settings.md)
-
-**Additional Configuration:**
-- Configure closed-loop parameters (if using encoder feedback)
-
-#### 3.4 Mount Driver
-
-**Mounting Orientation:**
-- **Mount CL86T vertically** (heat sink fins vertical) for maximum heat dissipation
-- Vertical mounting allows natural convection to work best
-- Heat rises, so vertical orientation maximizes airflow
-
-**Location and Spacing:**
-- Mount in well-ventilated location
-- Ensure adequate clearance around driver (at least 50mm recommended)
-- If using multiple CL86T drivers, keep **minimum 30mm (12 inches)** spacing between them
-- Use non-conductive mounting hardware
-
-**Cooling Considerations:**
-- **Maximum reliable working temperature: 40°C (109°F)**
-- Monitor driver temperature during operation
-- **Add cooling fan nearby if:**
-  - Operating at maximum current (5.7A RMS)
-  - Ambient temperature is high
-  - Driver runs continuously for extended periods
-  - Temperature approaches 35°C during operation
-
-**Environmental Requirements:**
-- Operating temperature: 0-40°C (32-102°F)
-- Humidity: 40-90%RH (avoid condensation)
-- Avoid dust, oil fog, and corrosive gases
-- Ensure adequate airflow for cooling (natural or forced)
-
-### Step 4: Check LED Indicators
-
-After powering on the CL86T driver:
-
-1. **GREEN LED:**
-   - Should be **ON** when driver is powered
-   - Indicates power is connected correctly
-   - If OFF, check power connections
-
-2. **RED LED:**
-   - Should be **OFF** during normal operation
-   - If ON or flashing, indicates alarm condition
-   - Check connections, voltage, and current settings
-
-**If RED LED is flashing:**
-- Check power supply voltage (should be 24-110VDC)
-- Check current setting (may be too high)
-- Check motor connections
-- Check encoder connections (if using closed-loop)
-- Refer to troubleshooting guide
-
-### Step 5: Motor Preparation
-
-#### 4.1 Identify Motor Power Wires
-
-The 34E1K-120 has **4 thick wires** in one cable bundle. Colors: **Red, Green, Blue, Black**
-
-**✅ Verified Configuration:**
-- **A+** → **Black**
-- **A-** → **Green**
-- **B+** → **Red**
-- **B-** → **Blue**
-
-**If you need to verify (multimeter method):**
-1. **Power OFF** the system
-2. Set multimeter to resistance/continuity mode
-3. Test pairs of wires - pairs will show continuity (~0.72Ω)
-4. One pair = Phase A (A+ and A-)
-5. Other pair = Phase B (B+ and B-)
-6. Between different phases: High resistance (open circuit)
-
-**For detailed wire identification, see [Motor Wire Identification Guide](motor-wire-identification.md)**
-
-#### 4.2 Identify Encoder Wires
-
-The 34E1K-120 has **encoder wires** in a connector. Colors: **Black (thin), Red, Green, White, Yellow, Blue, Black (thick)**
-
-**Standard Encoder Wire Colors:**
-- **Red:** VCC (+5V power - driver supplies)
-- **Black (thin):** EGND (ground)
-- **Green:** EA+ (encoder A positive)
-- **White:** EA- (encoder A negative)
-- **Yellow:** EB+ (encoder B positive)
-- **Blue:** EB- (encoder B negative)
-- **Black (thick):** Shield/ground (optional)
-
-**For detailed wire identification, see [Motor Wire Identification Guide](motor-wire-identification.md)**
-
-#### 4.3 Prepare Motor Wires
-- Strip wire ends (about 5mm) - power wires only (encoder has connector)
-- Ensure no frayed strands
-- Label wires if needed (A+, A-, B+, B-)
-
-### Step 6: Wiring Connections
-
-#### 5.1 Power Supply to Driver
-
-**LE-350-60 DC Output Terminals:**
-- **+V, +V, +V** (three positive terminals - use any one)
-- **-V, -V, -V** (three negative terminals - use any one)
-- **GND** (ground/frame ground - optional)
-
-**CL86T Power Input Terminals:**
-- **AC, AC** (two AC terminals - accept AC or DC input, no polarity for DC)
-
-**Connection Steps:**
-1. **Disconnect power supply from AC** (if connected)
-2. Connect **+V** wire (red, from any +V terminal) to CL86T **AC** (first terminal)
-3. Connect **-V** wire (black, from any -V terminal) to CL86T **AC** (second terminal)
-4. **Optional:** Connect **GND** to frame ground for safety
-5. Ensure connections are tight and secure
-6. **Note:** CL86T AC terminals accept DC input - no polarity requirement for DC
-7. **Double-check connections** - verify with multimeter before powering on
-
-#### 5.2 Motor Power Wires to Driver
-
-**✅ Verified Configuration:**
-1. Connect **Black** wire to CL86T **A+** terminal
-2. Connect **Green** wire to CL86T **A-** terminal
-3. Connect **Red** wire to CL86T **B+** terminal
-4. Connect **Blue** wire to CL86T **B-** terminal
-5. Ensure all connections are tight
-6. Verify no loose strands or shorts
-
-**Note:** If motor vibrates but doesn't rotate, swap A+ and A- (Black ↔ Green) or B+ and B- (Red ↔ Blue)
-
-#### 5.2a Encoder Wires to Driver
-
-**CL86T Encoder Terminals:**
-- **EA+, EA-** (Encoder channel A differential input)
-- **EB+, EB-** (Encoder channel B differential input)
-- **VCC, EGND** (Encoder power - VCC supplies 5V OUTPUT, EGND is ground)
-
-**Connection Steps:**
-1. **Red** → CL86T **VCC** (encoder power - driver supplies 5V)
-2. **Black (thin)** → CL86T **EGND** (encoder ground)
-3. **Green** → CL86T **EA+** (encoder A positive)
-4. **White** → CL86T **EA-** (encoder A negative)
-5. **Yellow** → CL86T **EB+** (encoder B positive)
-6. **Blue** → CL86T **EB-** (encoder B negative)
-7. **Black (thick)** → CL86T **EGND** or separate ground (shield, optional)
-
-**⚠️ Important:** CL86T VCC supplies 5V to encoder - do not connect external 5V power
-
-#### 5.3 Arduino to Driver (Signal Connections)
-
-**CL86T Control Signal Terminals:**
-- **PUL+, PUL-** (Pulse/Step signal)
-- **DIR+, DIR-** (Direction signal)
-- **ENA+, ENA-** (Enable signal, optional)
-
-**Connection Steps:**
-1. Connect Arduino Digital Pin 2 to CL86T **PUL+** terminal
-2. Connect Arduino Digital Pin 3 to CL86T **DIR+** terminal
-3. Connect Arduino Digital Pin 4 to CL86T **ENA+** terminal (optional - no connection is default)
-4. Connect Arduino GND to CL86T **PUL-** terminal
-5. Connect Arduino GND to CL86T **DIR-** terminal
-6. Connect Arduino GND to CL86T **ENA-** terminal
-
-**Note:** You can use a single GND wire with multiple connections, or separate wires - both methods work.
-
-**Enable Signal (ENA):**
-- **Default:** No connection (driver enabled by default)
-- **Optional:** Connect for enable/disable control
-- **Voltage:** 5V-24V supported
-- **If used:** Must advance DIR signal by minimum 200ms
-
-#### 5.4 Optional: Fault Output Connection (ALM+/ALM-)
-
-**CL86T Alarm Terminal:**
-- **ALM+, ALM-** (Alarm/Fault output, max 30VDC/100mA)
-
-**For monitoring driver status:**
-
-1. **Connection Options:**
-   - Can connect to Arduino digital input (with voltage level conversion if needed)
-   - Can connect to PLC or other control system
-   - Sinking or sourcing connection supported
-
-2. **Function:**
-   - Changes state when fault occurs (over-voltage, over-current, etc.)
-   - RED LED also provides visual indication
-   - Optional - driver works without this connection
-
-3. **Use Cases:**
-   - Remote fault monitoring
-   - Safety shutdown triggers
-   - Fault logging
-
-#### 5.5 Optional: Brake Output Connection (BRK/PEND+/BRK/PEND-)
-
-**CL86T Brake/Pend Terminal:**
-- **BRK/PEND+, BRK/PEND-** (Brake/Pend output, max 30VDC/100mA)
-
-**For motor brake control (if motor has brake):**
-
-1. **Requires Relay:**
-   - Brake output cannot directly drive motor brake
-   - Must use relay between BRK/PEND+ and BRK/PEND- and brake coil
-   - Select relay appropriate for brake voltage/current
-
-2. **Connection:**
-   - CL86T BRK/PEND+ → Relay coil
-   - CL86T BRK/PEND- → Relay coil
-   - Relay contacts → Motor brake coil
-   - Power supply → Motor brake coil
-
-3. **SW8 Setting:**
-   - Set SW8 to OFF for brake output mode
-   - Set SW8 to ON for pend output mode
-
-4. **Use Cases:**
-   - Motor holding brake control
-   - Safety brake activation
-   - Controlled brake release
-
-**Note:** Only needed if motor has brake and you want automatic control.
-
-#### 5.4 Optional: Resistor Protection
-If adding 1kΩ resistors for extra protection:
-1. Insert 1kΩ resistor between Arduino Pin 2 and PUL+
-2. Insert 1kΩ resistor between Arduino Pin 3 and DIR+
-3. Insert 1kΩ resistor between Arduino Pin 4 and ENA+
-
-### Step 7: Pre-Power Checks
-
-Before applying power, perform these checks:
-
-#### 6.1 Visual Inspection
-- [ ] All connections are secure
-- [ ] No loose wires or strands
-- [ ] No exposed conductors
-- [ ] Proper wire gauge used
-- [ ] Motor shaft can rotate freely
-
-#### 6.2 Continuity Tests (Power OFF)
-Using multimeter:
-
-1. **Power Supply Output:**
-   - Measure resistance between VCC and GND (should be high, not shorted)
-   - Verify voltage setting (if adjustable)
-
-2. **Motor Phases:**
-   - Measure resistance between A+ and A- (should be 0.5-2.0 ohms)
-   - Measure resistance between B+ and B- (should be 0.5-2.0 ohms)
-   - Measure resistance between A+ and B+ (should be high/open)
-
-3. **Signal Connections:**
-   - Verify Arduino pins are not shorted to GND or VCC
-   - Check continuity of signal wires
-
-#### 6.3 Arduino Check
-- [ ] Arduino is powered via USB
-- [ ] Arduino LED is on
-- [ ] No error messages in Arduino IDE/PlatformIO
-- [ ] Code is uploaded successfully
-
-### Step 8: Initial Power-On
-
-#### 7.1 Power Sequence
-1. **Ensure motor shaft is free to rotate**
-2. Connect Arduino USB to computer
-3. Open serial monitor (115200 baud)
-4. **Plug in power supply AC input**
-5. Observe power supply LED/indicator
-6. Check for any unusual sounds or smells
-
-#### 7.2 Initial Test
-1. Send '?' command via serial monitor
-2. Verify Arduino responds with status
-3. Send 'n' command to nudge (move 1 step)
-4. Observe motor movement
-
-### Step 9: Verification and Calibration
-
-#### 8.1 Basic Movement Test
-- Test nudge movement (n command - 1 step)
-- Test stop (S command)
-- Test home position (H command)
-- Test zeroing home (0 command)
-
-#### 8.2 Direction Verification
-- If motor moves opposite to expected, use 'i' command to inverse direction
-- Or change `DIR_INVERT` in `pins.h`
-- Or swap DIR+ and DIR- connections
-
-#### 8.3 Speed Calibration
-- Test different speeds using '+' and '-' commands
-- Find optimal speed for your application
-- Note any vibration or resonance issues
-
-#### 8.4 Position Accuracy and Trigger Test
-- Test map command: 'm' then enter angle (e.g., 90)
-- Test trigger command: 't' (should rotate and return to start)
-- Verify motor returns to starting position accurately after trigger
-- Test multiple triggers to ensure no position creep
+```text
+Encoder Red            ->  CL86T VCC   (5V output from driver)
+Encoder Black (thin)   ->  CL86T EGND
+Encoder Green          ->  CL86T EA+
+Encoder White          ->  CL86T EA-
+Encoder Yellow         ->  CL86T EB+
+Encoder Blue           ->  CL86T EB-
+Encoder Black (thick)  ->  CL86T EGND or shield ground
+```
+
+Keep encoder wiring away from motor phase wiring.
+
+## CL86T Driver Setup
+
+### 5V/24V Input Selector
+
+Set the CL86T input selector to `5V` for Arduino UNO control.
+
+### DIP Switches
+
+Recommended initial settings:
+
+| Switch | Position | Meaning |
+| --- | --- | --- |
+| SW1 | ON | 200 pulses/rev, full step |
+| SW2 | ON | 200 pulses/rev, full step |
+| SW3 | ON | 200 pulses/rev, full step |
+| SW4 | ON | 200 pulses/rev, full step |
+| SW5 | ON | Clockwise direction |
+| SW6 | OFF | Closed-loop mode |
+| SW7 | OFF | Step/direction pulse mode |
+| SW8 | OFF | Brake output mode |
+
+This matches `STEPS_PER_REV = 200` in `include/pins.h`. If you change SW1-SW4 for microstepping, update `STEPS_PER_REV` and speed limits in firmware.
+
+Common alternatives:
+
+| Pulses/rev | Microstep | SW1 | SW2 | SW3 | SW4 |
+| --- | --- | --- | --- | --- | --- |
+| 200 | 1 | ON | ON | ON | ON |
+| 800 | 4 | OFF | ON | ON | ON |
+| 1600 | 8 | ON | OFF | ON | ON |
+| 3200 | 16 | OFF | OFF | ON | ON |
+
+### S1 Current Setting
+
+Start conservatively:
+
+| S1 position | RMS current | Peak current | Use |
+| --- | --- | --- | --- |
+| 0-3 | 4.0A | 5.6A | Lower-current testing |
+| 4-9 | 5.0A | 7.0A | Recommended initial bring-up |
+| A-F | 5.7A | 8.0A | Higher torque after validation |
+
+The 34E1K-120 motor is rated around 6.0A, while the CL86T maximum is 5.7A RMS. Position `A` is close to the LE-350-60 supply limit, so use it only after the system moves reliably at position `4` and temperatures are acceptable.
+
+## Sensors
+
+### DF9-16 FSR on A0
+
+The current firmware is FSR-oriented and reads A0 only in debug mode.
+
+Wire the FSR as a voltage divider:
+
+```text
+Arduino 5V  ->  FSR  ->  Arduino A0  ->  10k resistor  ->  Arduino GND
+```
+
+Expected readings:
+
+- Not pressed: A0 near 0V, raw reading roughly 0-100.
+- Pressed: A0 rises, raw reading increases significantly.
+
+Do not use the older 1 Mohm piezo pull-down circuit for the DF9-16 FSR.
+
+Useful commands:
+
+```text
+C  Calibrate FSR baseline and load sensor zero
+P  Read FSR value on A0
+D  Continuous A0 diagnostic stream
+A  Toggle FSR auto-trigger mode
+```
+
+### HX711 Load Sensors
+
+HX711 module 1:
+
+```text
+HX711 VCC  ->  Arduino 5V
+HX711 GND  ->  Arduino GND
+HX711 DT   ->  Arduino Pin 5
+HX711 SCK  ->  Arduino Pin 6
+```
+
+HX711 module 2:
+
+```text
+HX711 VCC  ->  Arduino 5V
+HX711 GND  ->  Arduino GND
+HX711 DT   ->  Arduino Pin 7
+HX711 SCK  ->  Arduino Pin 8
+```
+
+Typical 4-wire load cell to HX711:
+
+```text
+Load cell E+ (Red)    ->  HX711 E+
+Load cell E- (Black)  ->  HX711 E-
+Load cell A+ (White)  ->  HX711 A+
+Load cell A- (Green)  ->  HX711 A-
+```
+
+Add a 100 uF capacitor across HX711 `VCC` and `GND` if readings are noisy.
+
+## Firmware Pin Reference
+
+| Firmware symbol | Arduino pin | Hardware |
+| --- | --- | --- |
+| `PIN_STEP` | D2 | CL86T `PUL+` |
+| `PIN_DIR` | D3 | CL86T `DIR+` |
+| `PIN_EN` | D4 | Reserved for optional future `ENA+` control |
+| `PIN_FSR_1` | A0 | DF9-16 FSR divider output |
+| `PIN_HX711_1_DT` | D5 | HX711 #1 data |
+| `PIN_HX711_1_SCK` | D6 | HX711 #1 clock |
+| `PIN_HX711_2_DT` | D7 | HX711 #2 data |
+| `PIN_HX711_2_SCK` | D8 | HX711 #2 clock |
+
+`PIN_EN` exists in firmware, but the physical `ENA+` wire should stay off Arduino Pin 4 during bring-up.
+
+## First Power-On
+
+Before applying power:
+
+- Power supply AC input is wired, but not plugged in yet.
+- Power supply DC output goes to the two CL86T `AC` input terminals.
+- Motor phases are connected: black/green/red/blue to `A+`/`A-`/`B+`/`B-`.
+- Encoder is connected to `EA+`, `EA-`, `EB+`, `EB-`, `VCC`, and `EGND`.
+- Arduino D2 goes to `PUL+`.
+- Arduino D3 goes to `DIR+`.
+- Arduino GND goes to `PUL-`, `DIR-`, and `ENA-`.
+- Arduino D4 is not connected to `ENA+`.
+- CL86T input selector is set to `5V`.
+- DIP switches and S1 are set for initial bring-up.
+- Motor shaft is free to rotate.
+
+Power-on sequence:
+
+1. Connect Arduino USB.
+2. Upload firmware with PlatformIO.
+3. Open serial monitor at 115200 baud.
+4. Apply power to the LE-350-60.
+5. Confirm the CL86T green LED is on and red alarm LED is off.
+6. Send `?` to verify serial communication.
+7. Send `n` to nudge one step.
+8. Send `m`, enter an angle such as `90`, then send `t` to test rotate-and-return.
+
+## Serial Commands
+
+| Command | Meaning |
+| --- | --- |
+| `S` / `s` | Stop motor |
+| `H` / `h` | Move to home position |
+| `0` | Set current position as home |
+| `+` | Increase speed by 100 steps/sec |
+| `-` | Decrease speed by 100 steps/sec |
+| `?` | Show status |
+| `N` / `n` | Nudge one step |
+| `M` / `m` | Map an angle for trigger |
+| `T` / `t` | Trigger mapped angle and return |
+| `I` / `i` | Invert direction in software |
+| `E` / `e` | Toggle firmware enable output; only meaningful if `ENA+` is wired later |
+| `P` / `p` | Read FSR value on A0 |
+| `L` / `l` | Read load sensor values |
+| `C` / `c` | Calibrate sensors |
+| `D` / `d` | Continuous A0 diagnostic mode |
+| `A` / `a` | Toggle FSR auto-trigger |
 
 ## Troubleshooting
 
-### Motor Doesn't Move
+### Motor Does Not Move
 
-**Check:**
-1. Power supply is on and outputting voltage
-2. CL86T power LED is on (if present)
-3. Motor enable signal is active
-4. Motor wires are connected correctly
-5. Arduino is sending step pulses (check with oscilloscope if available)
+1. Confirm CL86T green LED is on and red alarm LED is off.
+2. Disconnect Arduino Pin 4 from `ENA+` if present.
+3. Keep `ENA-` connected to Arduino GND.
+4. Confirm D2 -> `PUL+`, D3 -> `DIR+`, and GND -> `PUL-`/`DIR-`/`ENA-`.
+5. Confirm the CL86T input selector is set to `5V`.
+6. Confirm SW7 is `OFF` for step/direction mode.
+7. Try S1 position `4` before using `A`.
+8. Verify motor phase wiring.
 
-**Solution:**
-- Swap motor phase wires (A+ with A- or B+ with B-)
-- Check enable pin configuration
-- Verify step pulse frequency is within driver range
+### Motor Vibrates But Does Not Rotate
 
-### Motor Vibrates but Doesn't Rotate
+- Swap `A+` and `A-`, or swap `B+` and `B-`.
+- Confirm the two motor phases are paired correctly with a multimeter.
+- Confirm encoder wiring if using closed-loop mode.
 
-**Cause:** Incorrect motor phase wiring
+### Motor Moves in the Wrong Direction
 
-**Solution:**
-- Swap A+ and A- wires
-- Or swap B+ and B- wires
-- Or swap both pairs
+- Send `i` to invert direction in software.
+- Or change `DIR_INVERT` in `include/pins.h`.
+- Or toggle SW5 if you want to change the driver's direction setting.
 
-### Motor Moves in Wrong Direction
+### FSR Readings Are Noisy or Wrong
 
-**Solution:**
-- Change `DIR_INVERT` to `true` in `pins.h`
-- Or swap DIR+ and DIR- connections
+- Confirm the circuit is `5V -> FSR -> A0 -> 10k -> GND`.
+- Confirm the resistor is 10 kOhm, not 1 MOhm.
+- Use `D` to watch A0 continuously.
+- Keep FSR wires away from motor and power wiring.
+- Add decoupling on Arduino 5V/GND if needed.
 
-### Motor Moves Erratically
+### HX711 Reads Not Ready or Noisy
 
-**Check:**
-1. Loose connections
-2. Interference on signal wires
-3. Power supply voltage stability
-4. Driver current settings
+- Check `DT` and `SCK` wiring for each module.
+- Confirm HX711 `VCC` is connected to Arduino 5V and `GND` to Arduino GND.
+- Let the module stabilize for 1-2 seconds after power-on.
+- Add a 100 uF capacitor across HX711 power pins if needed.
 
-**Solution:**
-- Tighten all connections
-- Use shielded/twisted pair cables for signals
-- Check power supply output with multimeter
-- Review driver current limit settings
+### Driver or Motor Runs Hot
 
-### Arduino Not Responding
+- Start with S1 position `4`.
+- Mount the CL86T vertically with airflow around the heat sink.
+- Add a cooling fan if the driver approaches 35-40C.
+- Reduce duty cycle or current if temperatures keep rising.
 
-**Check:**
-1. USB cable connection
-2. Correct COM port selected
-3. Serial monitor baud rate (115200)
-4. Arduino is powered (LED on)
+## Optional Connections
 
-**Solution:**
-- Try different USB cable
-- Check Device Manager for COM port
-- Restart Arduino IDE/PlatformIO
-- Re-upload code
+Optional CL86T outputs are not needed for first motion:
+
+- `ALM+` / `ALM-`: alarm/fault output, max 30V DC / 100mA.
+- `BRK/PEND+` / `BRK/PEND-`: brake or pend output, max 30V DC / 100mA; use a relay for a brake.
+- EMI filter: useful between power supply and driver in noisy environments.
+- Driven `ENA+`: add only after baseline motion works and enable polarity is verified.
 
 ## Maintenance
 
-### Regular Checks
-- Inspect connections monthly for looseness or corrosion
-- Check wire insulation for damage
-- Verify motor runs smoothly
-- Monitor power supply temperature
-
-### Cleaning
-- Keep components free of dust
-- Clean terminals if corrosion appears
-- Ensure adequate ventilation
-
-### Storage
-- Disconnect power when not in use
-- Store in dry, temperature-controlled environment
-- Protect connections from moisture
-
-## Next Steps
-
-Once hardware is verified working:
-1. Proceed to software development
-2. Implement closed-loop feedback (if using encoder)
-3. Add additional sensors and controls
-4. Integrate with drum mechanism
-
-## Additional Resources
-
-- [Wiring Diagram](wiring-diagram.md) - Detailed connection diagrams
-- [CL86T Specifications](cl86t-specifications.md) - Complete CL86T driver specifications
-- [DIP Switch Settings](dip-switch-settings.md) - Complete DIP switch configuration guide
-- [Current Settings](current-settings.md) - S1 rotary switch current configuration
-- [Power Supply Selection](power-supply-selection.md) - Power supply selection and configuration
-- [Troubleshooting Guide](troubleshooting.md) - Common issues and solutions
-- CL86T Manual - Driver-specific configuration
-- 34E1K-120 Datasheet - Motor specifications
-- LE-350-60 Datasheet - Power supply specifications
-
+- Inspect terminal screws and insulation monthly.
+- Keep driver, power supply, and motor ventilated.
+- Keep signal/sensor wiring separated from motor power wiring.
+- Re-run `C` calibration after changing sensor mounting or wiring.
