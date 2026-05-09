@@ -26,7 +26,7 @@ static const uint8_t PIN_EN = 4;     // Reserved for optional future ENA+ contro
 
 // ---- Force-Sensitive Resistor (FSR) Sensor Pins ----
 // FSR sensors connect to analog pins via voltage divider circuit
-// Each sensor needs a 10kΩ resistor in voltage divider configuration
+// Each sensor needs a 1kΩ resistor in voltage divider configuration
 // Maximum 6 sensors on Arduino Uno (A0-A5)
 static const uint8_t PIN_FSR_1 = A0;  // FSR sensor 1
 static const uint8_t PIN_FSR_2 = A1;  // FSR sensor 2

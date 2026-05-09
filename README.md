@@ -143,7 +143,7 @@ s          # Stop immediately
 
 | Arduino Pin | Sensor Component | Description |
 | ----------- | ---------------- | ----------- |
-| Analog A0   | DF9-16 FSR | Voltage divider with 10k resistor |
+| Analog A0   | DF9-16 FSR | Voltage divider with 1k resistor |
 | Digital 5   | HX711 #1 DT      | Load Sensor 1 Data |
 | Digital 6   | HX711 #1 SCK     | Load Sensor 1 Clock |
 | Digital 7   | HX711 #2 DT      | Load Sensor 2 Data |

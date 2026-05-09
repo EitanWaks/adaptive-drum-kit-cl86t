@@ -68,6 +68,17 @@ int fsrBaseline[NUM_FSR_SENSORS] = {512};  // Default to mid-point (2.5V)
 int fsrThreshold[NUM_FSR_SENSORS] = {50};  // Default threshold
 // Number of samples for averaging (reduces noise)
 static const uint8_t FSR_AVG_SAMPLES = 10;
+static const int FSR_MIN_TRIGGER_DELTA = 150;
+
+static inline bool isFSRPressed(int adjustedValue)
+{
+  return adjustedValue > fsrThreshold[0];
+}
+
+static inline bool isFSRHeld(int adjustedValue)
+{
+  return adjustedValue > (fsrThreshold[0] / 2);
+}
 
 // ---- Utility Functions ----
 /**
@@ -142,18 +153,19 @@ void readFSRSensors()
   int adjustedValue = rawValue - fsrBaseline[0];
   float voltage = (rawValue / 1023.0) * 5.0;  // Convert to voltage (0-5V)
 
-  // Check for pressure (absolute value of adjusted reading exceeds threshold)
-  bool pressureDetected = abs(adjustedValue) > fsrThreshold[0];
+  // Check for pressure relative to calibrated baseline. With the documented
+  // divider wiring, pressing the FSR increases the reading.
+  bool pressureDetected = isFSRPressed(adjustedValue);
 
   // Calculate estimated resistance (for FSR debugging)
-  // Assuming 10kΩ pull-down resistor and sensor between 5V and A0
+  // Assuming 1kΩ pull-down resistor and sensor between 5V and A0
   // Voltage divider: Vout = Vin * (R2 / (R1 + R2))
   // Solving for R1 (FSR resistance): R1 = R2 * (Vin/Vout - 1)
-  // Where R2 = 10000Ω (10kΩ), Vin = 5V, Vout = voltage
+  // Where R2 = 1000Ω (1kΩ), Vin = 5V, Vout = voltage
   float estimatedResistance = 0.0;
   if (voltage > 0.01 && voltage < 4.99)  // Avoid division by zero
   {
-    float r2 = 10000.0;  // 10kΩ pull-down resistor
+    float r2 = 1000.0;  // 1kΩ pull-down resistor
     estimatedResistance = r2 * ((5.0 / voltage) - 1.0);
   }
 
@@ -303,15 +315,21 @@ void calibrateFSRSensors()
   // If noise is very high, use a fixed reasonable threshold
   if (noiseLevel > 200)
   {
-    // High noise - use fixed threshold (100 raw units = ~0.5V change)
-    fsrThreshold[0] = 100;
-    Serial.println(F("Warning: High noise detected. Using fixed threshold of 100."));
+    // High noise - use a larger fixed threshold to avoid false triggers.
+    fsrThreshold[0] = 200;
+    Serial.println(F("Warning: High noise detected. Using fixed threshold of 200."));
   }
   else
   {
-    // Normal noise - use 3x noise level, but cap at reasonable maximum
-    fsrThreshold[0] = (noiseLevel * 3 > 200) ? 200 : (noiseLevel * 3 < 30 ? 30 : noiseLevel * 3);
+    // Normal noise - use 4x noise level, with a minimum so jumper-wire drift
+    // does not retrigger the motor after calibration.
+    int threshold = noiseLevel * 4;
+    if (threshold < FSR_MIN_TRIGGER_DELTA) threshold = FSR_MIN_TRIGGER_DELTA;
+    fsrThreshold[0] = threshold;
   }
+
+  fsrWasPressed = false;
+  lastFSRTriggerTime = millis();
 
   Serial.print(F("Sensor A0: Baseline="));
   Serial.print(fsrBaseline[0]);
@@ -333,7 +351,7 @@ void calibrateFSRSensors()
   {
     Serial.println(F("WARNING: Very high noise detected!"));
     Serial.println(F("   - Check wiring connections"));
-    Serial.println(F("   - Verify 10kΩ resistor is correct value"));
+    Serial.println(F("   - Verify 1kΩ resistor is correct value"));
     Serial.println(F("   - Ensure FSR is properly connected"));
     Serial.println(F("   - Check for loose wires or shorts"));
   }
@@ -360,7 +378,7 @@ void calibrateFSRSensors()
 
   Serial.println(F("\nExpected behavior:"));
   Serial.println(F("  - Not pressed: Delta should stay close to 0"));
-  Serial.println(F("  - Pressed: Absolute delta should exceed threshold"));
+  Serial.println(F("  - Pressed: Positive delta should exceed threshold"));
   Serial.print(F("  - Threshold set to: "));
   Serial.println(fsrThreshold[0]);
 }
@@ -592,9 +610,18 @@ void processSerialCommand()
       if (autoTriggerEnabled)
       {
         Serial.println(F("ENABLED"));
+        {
+          int rawValue = readFSRSensorAveraged(PIN_FSR_1);
+          fsrWasPressed = isFSRPressed(rawValue - fsrBaseline[0]);
+          lastFSRTriggerTime = millis();
+        }
         if (mappedAngle == 0.0f)
         {
           Serial.println(F("Warning: No angle mapped. Use 'M' command first."));
+        }
+        if (fsrWasPressed)
+        {
+          Serial.println(F("FSR is already above threshold; release it before the next trigger."));
         }
         else
         {
@@ -744,7 +771,7 @@ void checkFSRAndTrigger()
   // Read FSR sensor
   int rawValue = readFSRSensorAveraged(PIN_FSR_1);
   int adjustedValue = rawValue - fsrBaseline[0];
-  bool pressureDetected = abs(adjustedValue) > fsrThreshold[0];
+  bool pressureDetected = fsrWasPressed ? isFSRHeld(adjustedValue) : isFSRPressed(adjustedValue);
 
   // Edge detection: trigger on rising edge (pressure just detected)
   if (pressureDetected && !fsrWasPressed)

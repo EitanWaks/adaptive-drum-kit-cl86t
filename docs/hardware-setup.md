@@ -150,7 +150,7 @@ The current firmware is FSR-oriented and reads A0 only in debug mode.
 Wire the FSR as a voltage divider:
 
 ```text
-Arduino 5V  ->  FSR  ->  Arduino A0  ->  10k resistor  ->  Arduino GND
+Arduino 5V  ->  FSR  ->  Arduino A0  ->  1k resistor  ->  Arduino GND
 ```
 
 Expected readings:
@@ -295,10 +295,12 @@ Power-on sequence:
 
 ### FSR Readings Are Noisy or Wrong
 
-- Confirm the circuit is `5V -> FSR -> A0 -> 10k -> GND`.
-- Confirm the resistor is 10 kOhm, not 1 MOhm.
+- Confirm the circuit is `5V -> FSR -> A0 -> 1k -> GND`.
+- Confirm the resistor is 1 kOhm, not 10 kOhm or 1 MOhm.
 - A calibrated idle baseline around a few hundred is usable if it is stable; the firmware triggers from delta relative to the baseline, not from raw value alone.
 - If the baseline is stable but high, calibrate with `C` while the sensor is not pressed and use `P` to confirm the delta stays close to 0 at idle.
+- If the system triggers by itself after calibration, the trigger threshold is too close to the idle drift. Recalibrate with the sensor fully released, keep the wires still, and confirm idle delta remains well below threshold before enabling auto-trigger with `A`. The firmware uses a minimum trigger delta of 150.
+- Use a 1 kOhm pulldown resistor for the current FSR setup. Recalibrate after replacing or rewiring the resistor.
 - Use `D` to watch A0 continuously.
 - Keep FSR wires away from motor and power wiring.
 - Add decoupling on Arduino 5V/GND if needed.
