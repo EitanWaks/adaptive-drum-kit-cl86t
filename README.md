@@ -89,7 +89,6 @@ This is an implementation designed for the hardware stack:
 | `M` or `m` | Map - Set angle for trigger (prompts for degrees, no movement) | `m` then `90` |
 | `T` or `t` | Trigger - Rotate stored angle CW then return CCW               | `t`           |
 | `I` or `i` | Inverse - Reverse clockwise/counterclockwise                   | `i`           |
-| `E` or `e` | Toggle firmware enable output; only meaningful if `ENA+` is wired later | `E` |
 | `P` or `p` | Read FSR sensor value on A0                                   | `P`           |
 | `L` or `l` | Read load sensor values                                        | `L`           |
 | `C` or `c` | Calibrate all sensors (set zero/baseline)                      | `C`           |

@@ -23,7 +23,6 @@
  *   'M' or 'm' - Map/calibrate rotating N degrees (stores angle for trigger)
  *   'T' or 't' - Trigger (rotate stored angle CW then return CCW)
  *   'I' or 'i' - Inverse (reverse clockwise/counterclockwise direction)
- *   'E' or 'e' - Toggle firmware enable output (only useful if ENA+ is wired later)
  *   'P' or 'p' - Read FSR sensor values
  *   'L' or 'l' - Read load sensor values
  *   'C' or 'c' - Calibrate all sensors
@@ -46,7 +45,7 @@ HX711 loadSensor2;
 // ---- State Variables ----
 float currentSpeed = SPEED_DEFAULT_SPS;
 bool motorEnabled = true;
-bool directionInverted = DIR_INVERT;
+bool commandDirectionInverted = false;
 long returnToPosition = 0;  // For rotate-and-return command
 bool waitingForReturn = false;  // Flag to track if we're in return phase
 bool inReturnPhase = false;  // Flag to track if we're currently returning (not going forward)
@@ -81,6 +80,15 @@ static inline long degToSteps(float deg)
 }
 
 /**
+ * Apply the runtime inverse command to a relative move.
+ * DIR_INVERT remains a fixed hardware polarity setting in pins.h.
+ */
+static inline long applyCommandDirection(long steps)
+{
+  return commandDirectionInverted ? -steps : steps;
+}
+
+/**
  * Print current status to serial
  */
 void printStatus()
@@ -100,6 +108,10 @@ void printStatus()
   Serial.println(F(" steps"));
   Serial.print(F("Motor enabled: "));
   Serial.println(motorEnabled ? F("YES") : F("NO"));
+  Serial.print(F("Command direction: "));
+  Serial.println(commandDirectionInverted ? F("INVERTED") : F("NORMAL"));
+  Serial.print(F("DIR pin polarity inverted: "));
+  Serial.println(DIR_INVERT ? F("YES") : F("NO"));
   Serial.println(F("===================\n"));
 }
 
@@ -391,6 +403,30 @@ void setSpeed(float speed)
 }
 
 /**
+ * Start a mapped rotate-and-return action.
+ */
+void startTriggerMove(const __FlashStringHelper* sourceLabel)
+{
+  long rawSteps = degToSteps(mappedAngle);
+  long moveSteps = applyCommandDirection(rawSteps);
+  returnToPosition = motor.currentPosition();
+  inReturnPhase = false;
+
+  Serial.print(sourceLabel);
+  Serial.print(F(": Rotating "));
+  Serial.print(mappedAngle);
+  Serial.print(F(" degrees ("));
+  Serial.print(moveSteps);
+  Serial.print(F(" commanded steps) from position "));
+  Serial.print(returnToPosition);
+  Serial.println(F(", then returning..."));
+
+  motor.setMaxSpeed(currentSpeed);
+  motor.move(moveSteps);
+  waitingForReturn = true;
+}
+
+/**
  * Process serial commands
  */
 void processSerialCommand()
@@ -459,7 +495,7 @@ void processSerialCommand()
     case 'n':
       // Nudge (move 1 step)
       motor.setMaxSpeed(currentSpeed);
-      motor.move(1);
+      motor.move(applyCommandDirection(1));
       waitingForReturn = false;  // Cancel any pending return
       inReturnPhase = false;  // Reset return phase
       break;
@@ -531,38 +567,16 @@ void processSerialCommand()
         break;
       }
       {
-        long steps = degToSteps(mappedAngle);
-        returnToPosition = motor.currentPosition();
-        inReturnPhase = false;  // Start in forward phase
-        Serial.print(F("Trigger: Rotating "));
-        Serial.print(mappedAngle);
-        Serial.print(F(" degrees CW ("));
-        Serial.print(steps);
-        Serial.print(F(" steps) from position "));
-        Serial.print(returnToPosition);
-        Serial.println(F(", then returning..."));
-        motor.setMaxSpeed(currentSpeed);
-        motor.move(steps);
-        waitingForReturn = true;  // Set flag to return after reaching target
+        startTriggerMove(F("Trigger"));
       }
       break;
 
     case 'I':
     case 'i':
-      // Reverse clockwise/counterclockwise direction
-      directionInverted = !directionInverted;
-      motor.setPinsInverted(directionInverted, false, EN_ACTIVE_LOW);
-      Serial.print(F("Inverse: Direction "));
-      Serial.println(directionInverted ? F("INVERTED") : F("NORMAL"));
-      break;
-
-    case 'E':
-    case 'e':
-      // Toggle firmware enable output. This only affects the driver if ENA+ is wired.
-      motorEnabled = !motorEnabled;
-      setMotorEnabled(motorEnabled);
-      Serial.print(F("Motor "));
-      Serial.println(motorEnabled ? F("ENABLED") : F("DISABLED"));
+      // Reverse commanded motion direction without changing hardware pin polarity.
+      commandDirectionInverted = !commandDirectionInverted;
+      Serial.print(F("Inverse: Command direction "));
+      Serial.println(commandDirectionInverted ? F("INVERTED") : F("NORMAL"));
       break;
 
     case 'P':
@@ -646,7 +660,6 @@ void processSerialCommand()
       Serial.println(F("M/m - Map (set angle for trigger, prompts for degrees)"));
       Serial.println(F("T/t - Trigger (rotate stored angle CW then return CCW)"));
       Serial.println(F("I/i - Inverse (reverse clockwise/counterclockwise)"));
-      Serial.println(F("E/e - Toggle firmware enable output (only useful if ENA+ is wired)"));
       Serial.println(F("P/p - Read FSR sensor values"));
       Serial.println(F("L/l - Read load sensor values"));
       Serial.println(F("C/c - Calibrate all sensors (set zero/baseline)"));
@@ -682,7 +695,7 @@ void setup()
   // pinMode(PIN_FSR_6, INPUT);
 
   // Initialize motor
-  motor.setPinsInverted(directionInverted, false, EN_ACTIVE_LOW);
+  motor.setPinsInverted(DIR_INVERT, false, EN_ACTIVE_LOW);
   motor.setMinPulseWidth(3); // Minimum pulse width in microseconds
   motor.setAcceleration(ACCEL_SPS2);
   motor.setMaxSpeed(currentSpeed);
@@ -758,18 +771,12 @@ void checkFSRAndTrigger()
       // Only trigger if motor is not already moving
       if (!waitingForReturn)
       {
-        long steps = degToSteps(mappedAngle);
-        returnToPosition = motor.currentPosition();
-        inReturnPhase = false;
-
         Serial.print(F("[FSR Trigger] Pressure detected! Rotating "));
         Serial.print(mappedAngle);
         Serial.print(F(" degrees..."));
         Serial.println();
 
-        motor.setMaxSpeed(currentSpeed);
-        motor.move(steps);
-        waitingForReturn = true;
+        startTriggerMove(F("[FSR Trigger]"));
         lastFSRTriggerTime = currentTime;
       }
     }

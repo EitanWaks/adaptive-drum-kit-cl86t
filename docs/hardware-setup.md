@@ -256,7 +256,6 @@ Power-on sequence:
 | `M` / `m` | Map an angle for trigger |
 | `T` / `t` | Trigger mapped angle and return |
 | `I` / `i` | Invert direction in software |
-| `E` / `e` | Toggle firmware enable output; only meaningful if `ENA+` is wired later |
 | `P` / `p` | Read FSR value on A0 |
 | `L` / `l` | Read load sensor values |
 | `C` / `c` | Calibrate sensors |
@@ -287,6 +286,12 @@ Power-on sequence:
 - Send `i` to invert direction in software.
 - Or change `DIR_INVERT` in `include/pins.h`.
 - Or toggle SW5 if you want to change the driver's direction setting.
+
+### Direction Never Changes
+
+- Confirm D3 -> `DIR+` and Arduino GND -> `DIR-`.
+- Check for loose `DIR+`/`DIR-` terminal connections before changing firmware.
+- Confirm SW7 is `OFF` for PUL/DIR single-pulse mode.
 
 ### FSR Readings Are Noisy or Wrong
 
