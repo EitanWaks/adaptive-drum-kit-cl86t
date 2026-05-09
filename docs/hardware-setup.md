@@ -297,6 +297,8 @@ Power-on sequence:
 
 - Confirm the circuit is `5V -> FSR -> A0 -> 10k -> GND`.
 - Confirm the resistor is 10 kOhm, not 1 MOhm.
+- A calibrated idle baseline around a few hundred is usable if it is stable; the firmware triggers from delta relative to the baseline, not from raw value alone.
+- If the baseline is stable but high, calibrate with `C` while the sensor is not pressed and use `P` to confirm the delta stays close to 0 at idle.
 - Use `D` to watch A0 continuously.
 - Keep FSR wires away from motor and power wiring.
 - Add decoupling on Arduino 5V/GND if needed.

@@ -157,26 +157,17 @@ void readFSRSensors()
     estimatedResistance = r2 * ((5.0 / voltage) - 1.0);
   }
 
-  // Diagnostic: Check if reading makes sense
-  const char* status = "";
-  if (rawValue < 50)
-  {
-    status = " [OK: Not pressed]";
-  }
-  else if (rawValue > 200 && rawValue < 800)
-  {
-    status = " [WARNING: Unexpected, should be <50 or >800]";
-  }
-  else if (rawValue >= 800)
-  {
-    status = " [OK: Pressed]";
-  }
+  // Interpret pressure relative to the calibrated idle baseline. A stable idle
+  // reading does not need to be near zero for the sensor to work.
+  const char* status = pressureDetected ? " [PRESSURE DETECTED!]" : " [IDLE]";
 
   Serial.print(F("Sensor A0: Raw="));
   Serial.print(rawValue);
   Serial.print(F(" ("));
   Serial.print(voltage, 2);
-  Serial.print(F("V), Adjusted="));
+  Serial.print(F("V), Baseline="));
+  Serial.print(fsrBaseline[0]);
+  Serial.print(F(", Delta="));
   Serial.print(adjustedValue);
   Serial.print(F(", Threshold="));
   Serial.print(fsrThreshold[0]);
@@ -204,14 +195,6 @@ void readFSRSensors()
     Serial.print(F("N/A (maxed out)"));
   }
   Serial.print(status);
-  if (pressureDetected)
-  {
-    Serial.print(F(" [PRESSURE DETECTED!]"));
-  }
-  else if (rawValue > 200)
-  {
-    Serial.print(F(" [Above threshold but not detected - threshold too high?]"));
-  }
   Serial.println();
   Serial.println(F("==========================================\n"));
 }
@@ -360,22 +343,24 @@ void calibrateFSRSensors()
     Serial.println(F("   - Wiring may need improvement"));
   }
 
-  // Check if baseline is reasonable
-  if (fsrBaseline[0] > 200)
+  // Check if baseline is near the ADC rails. Mid-range baselines are usable if stable.
+  if (fsrBaseline[0] < 20 || fsrBaseline[0] > 1000)
   {
-    Serial.print(F("WARNING: Baseline is high ("));
+    Serial.print(F("WARNING: Baseline is near ADC limit ("));
     Serial.print(fsrBaseline[0]);
     Serial.println(F(")."));
-    Serial.println(F("   Expected: 0-100 when FSR not pressed"));
-    Serial.println(F("   Possible issues:"));
-    Serial.println(F("   - FSR may be partially pressed"));
-    Serial.println(F("   - Wiring may be incorrect"));
-    Serial.println(F("   - FSR may be damaged"));
+    Serial.println(F("   Sensor may have limited usable range."));
+    Serial.println(F("   Check for shorts, opens, incorrect resistor value, or constant pressure."));
+  }
+  else if (fsrBaseline[0] > 200)
+  {
+    Serial.println(F("Note: Idle baseline is above 200, but this is OK if it is stable."));
+    Serial.println(F("      Pressure is detected from delta relative to this calibrated baseline."));
   }
 
   Serial.println(F("\nExpected behavior:"));
-  Serial.println(F("  - Not pressed: Reading 0-100 (near 0V)"));
-  Serial.println(F("  - Pressed: Reading increases significantly (200-1023)"));
+  Serial.println(F("  - Not pressed: Delta should stay close to 0"));
+  Serial.println(F("  - Pressed: Absolute delta should exceed threshold"));
   Serial.print(F("  - Threshold set to: "));
   Serial.println(fsrThreshold[0]);
 }
